@@ -14,34 +14,36 @@ export const maxDuration = 30
 export async function POST(req: Request) {
   console.log('[v0] Horoscope API called')
   
-  const { 
-    message, 
-    zodiacSign, 
-    element, 
-    traits, 
-    birthdate 
-  }: { 
-    message: UIMessage
-    zodiacSign: string
-    element: string
-    traits: string[]
-    birthdate: string
-  } = await req.json()
+  try {
+    const { 
+      message, 
+      zodiacSign, 
+      element, 
+      traits, 
+      birthdate 
+    }: { 
+      message: UIMessage
+      zodiacSign: string
+      element: string
+      traits: string[]
+      birthdate: string
+    } = await req.json()
 
-  console.log('[v0] Received request for zodiac sign:', zodiacSign)
-  console.log('[v0] Message:', JSON.stringify(message))
+    console.log('[v0] Received request for zodiac sign:', zodiacSign)
+    console.log('[v0] Message:', JSON.stringify(message))
+    console.log('[v0] API Key exists:', !!process.env.GOOGLE_GENERATIVE_AI_API_KEY)
 
-  // Build the conversation with system context
-  const messages: UIMessage[] = [message]
+    // Build the conversation with system context
+    const messages: UIMessage[] = [message]
 
-  const birthDate = new Date(birthdate)
-  const today = new Date()
-  
-  // Calculate current astrological context
-  const currentMonth = today.toLocaleString('en-US', { month: 'long' })
-  const currentSeason = getSeason(today.getMonth())
+    const birthDate = new Date(birthdate)
+    const today = new Date()
+    
+    // Calculate current astrological context
+    const currentMonth = today.toLocaleString('en-US', { month: 'long' })
+    const currentSeason = getSeason(today.getMonth())
 
-  const systemPrompt = `You are Delph-AI, a mystical AI oracle inspired by the ancient Oracle of Delphi. You provide personalized horoscope readings and cosmic guidance with an elegant, mystical tone.
+    const systemPrompt = `You are Delph-AI, a mystical AI oracle inspired by the ancient Oracle of Delphi. You provide personalized horoscope readings and cosmic guidance with an elegant, mystical tone.
 
 SEEKER'S ASTROLOGICAL PROFILE:
 - Zodiac Sign: ${zodiacSign}
@@ -69,18 +71,24 @@ READING GUIDELINES:
 
 Remember: You are providing entertainment and inspiration, not professional advice. Be supportive and uplifting while maintaining your mystical character.`
 
-  console.log('[v0] Converting messages and calling Gemini...')
+    console.log('[v0] Converting messages and calling Gemini...')
 
-  const result = streamText({
-    model: google('gemini-2.0-flash'),
-    system: systemPrompt,
-    messages: await convertToModelMessages(messages),
-    abortSignal: req.signal,
-  })
+    const result = streamText({
+      model: google('gemini-2.0-flash'),
+      system: systemPrompt,
+      messages: await convertToModelMessages(messages),
+    })
 
-  console.log('[v0] Returning stream response')
+    console.log('[v0] Returning stream response')
 
-  return result.toUIMessageStreamResponse()
+    return result.toUIMessageStreamResponse()
+  } catch (error) {
+    console.error('[v0] Horoscope API error:', error)
+    return new Response(
+      JSON.stringify({ error: 'Failed to generate horoscope', details: String(error) }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    )
+  }
 }
 
 function getSeason(month: number): string {
