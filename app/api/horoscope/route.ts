@@ -1,13 +1,19 @@
 import {
-  consumeStream,
   convertToModelMessages,
   streamText,
   UIMessage,
 } from 'ai'
+import { createGoogleGenerativeAI } from '@ai-sdk/google'
+
+const google = createGoogleGenerativeAI({
+  apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+})
 
 export const maxDuration = 30
 
 export async function POST(req: Request) {
+  console.log('[v0] Horoscope API called')
+  
   const { 
     message, 
     zodiacSign, 
@@ -21,6 +27,9 @@ export async function POST(req: Request) {
     traits: string[]
     birthdate: string
   } = await req.json()
+
+  console.log('[v0] Received request for zodiac sign:', zodiacSign)
+  console.log('[v0] Message:', JSON.stringify(message))
 
   // Build the conversation with system context
   const messages: UIMessage[] = [message]
@@ -60,17 +69,18 @@ READING GUIDELINES:
 
 Remember: You are providing entertainment and inspiration, not professional advice. Be supportive and uplifting while maintaining your mystical character.`
 
+  console.log('[v0] Converting messages and calling Gemini...')
+
   const result = streamText({
-    model: 'openai/gpt-5',
+    model: google('gemini-2.0-flash'),
     system: systemPrompt,
     messages: await convertToModelMessages(messages),
     abortSignal: req.signal,
   })
 
-  return result.toUIMessageStreamResponse({
-    originalMessages: messages,
-    consumeSseStream: consumeStream,
-  })
+  console.log('[v0] Returning stream response')
+
+  return result.toUIMessageStreamResponse()
 }
 
 function getSeason(month: number): string {

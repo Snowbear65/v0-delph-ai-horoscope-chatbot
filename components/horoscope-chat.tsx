@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import { Button } from '@/components/ui/button'
@@ -14,23 +14,25 @@ interface HoroscopeChatProps {
 
 export function HoroscopeChat({ zodiacSign, birthdate }: HoroscopeChatProps) {
   const [input, setInput] = useState('')
+  const [hasSentInitial, setHasSentInitial] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   
-  const { messages, sendMessage, status } = useChat({
-    transport: new DefaultChatTransport({ 
-      api: '/api/horoscope',
-      prepareSendMessagesRequest: ({ id, messages }) => ({
-        body: {
-          message: messages[messages.length - 1],
-          id,
-          zodiacSign: zodiacSign.name,
-          element: zodiacSign.element,
-          traits: zodiacSign.traits,
-          birthdate: birthdate.toISOString(),
-        },
-      }),
+  // Memoize transport to prevent recreation on every render
+  const transport = useMemo(() => new DefaultChatTransport({ 
+    api: '/api/horoscope',
+    prepareSendMessagesRequest: ({ id, messages }) => ({
+      body: {
+        message: messages[messages.length - 1],
+        id,
+        zodiacSign: zodiacSign.name,
+        element: zodiacSign.element,
+        traits: zodiacSign.traits,
+        birthdate: birthdate.toISOString(),
+      },
     }),
-  })
+  }), [zodiacSign.name, zodiacSign.element, zodiacSign.traits, birthdate])
+  
+  const { messages, sendMessage, status } = useChat({ transport })
 
   const isLoading = status === 'streaming' || status === 'submitted'
 
@@ -39,12 +41,16 @@ export function HoroscopeChat({ zodiacSign, birthdate }: HoroscopeChatProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // Send initial greeting
+  // Send initial greeting with a small delay to ensure transport is ready
   useEffect(() => {
-    if (messages.length === 0) {
-      sendMessage({ text: 'Hello, I would like to know my horoscope reading.' })
+    if (!hasSentInitial && status === 'ready') {
+      const timer = setTimeout(() => {
+        setHasSentInitial(true)
+        sendMessage({ text: 'Hello, I would like to know my horoscope reading.' })
+      }, 100)
+      return () => clearTimeout(timer)
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [status, hasSentInitial, sendMessage])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
